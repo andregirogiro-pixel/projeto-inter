@@ -15,7 +15,7 @@ O plano e os critérios de aceite estão em [`docs/01-escopo-e-etapas.md`](docs/
 
 ## Interface atual
 
-A página recebe um parágrafo e chama a API Python local. Ela produz uma lista preliminar contendo predicado, participante principal, referente, negação, modalidade, atribuição, evidência e intervalo no original.
+A página recebe um parágrafo principal, um contexto anterior opcional e chama a API Python local. Ela produz proposições e uma lista de menções com tipo, origem, características e intervalos exatos no texto. Os participantes das proposições já apontam para IDs de menção; a formação dos referentes `R1/R2` será o próximo incremento.
 
 Esta versão é um extrator heurístico demonstrativo. Confiança e pendências são exibidas de forma explícita; a validação linguística e o motor semântico serão desenvolvidos nas próximas etapas.
 

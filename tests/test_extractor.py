@@ -26,17 +26,27 @@ class ExtractorTests(unittest.TestCase):
         self.assertTrue(negadas)
         self.assertTrue(any(prop.predicado == "assinar" for prop in negadas))
 
-    def test_resolve_helena_e_gerente(self) -> None:
+    def test_participantes_apontam_para_mencoes(self) -> None:
         resultado = analisar_paragrafo(EXEMPLO)
-        ids = {referente.id for referente in resultado.referentes}
-        self.assertIn("R1", ids)
-        self.assertIn("R2", ids)
+        ids = {mencao.id for mencao in resultado.mencoes}
+        for proposicao in resultado.proposicoes:
+            for participante in proposicao.participantes:
+                self.assertIn(participante.mencao_id, ids)
+                self.assertEqual(
+                    participante.mencao,
+                    resultado.paragrafo[participante.intervalo.inicio:participante.intervalo.fim],
+                )
 
     def test_cadeia_auxiliar_gera_uma_proposicao_lexical(self) -> None:
         resultado = analisar_paragrafo("Nenhuma falha tivesse sido encontrada.")
         predicados = [proposicao.predicado for proposicao in resultado.proposicoes]
         self.assertEqual(predicados, ["encontrar"])
         self.assertEqual(resultado.proposicoes[0].participantes[0].mencao, "Nenhuma falha")
+
+    def test_contexto_nao_gera_proposicoes(self) -> None:
+        resultado = analisar_paragrafo("Ela insistiu.", "Helena apresentou a proposta.")
+        self.assertTrue(any(m.origem == "contexto_anterior" for m in resultado.mencoes))
+        self.assertTrue(all(p.evidencia.texto in resultado.paragrafo for p in resultado.proposicoes))
 
 
 if __name__ == "__main__":

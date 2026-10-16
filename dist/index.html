@@ -47,6 +47,21 @@
               placeholder="Cole ou escreva um parágrafo em português…"
             ></textarea>
 
+            <details class="context-box">
+              <summary>
+                <span>Adicionar contexto anterior</span>
+                <small>opcional · usado apenas nas referências</small>
+              </summary>
+              <label for="previous-context">Texto anterior ao parágrafo analisado</label>
+              <textarea
+                id="previous-context"
+                class="context-textarea"
+                maxlength="10000"
+                spellcheck="true"
+                placeholder="Cole aqui o parágrafo anterior, se houver…"
+              ></textarea>
+            </details>
+
             <div class="input-actions">
               <button id="analyze" class="primary-button" type="button">
                 <span>Analisar estrutura</span>
@@ -84,7 +99,7 @@
           </div>
 
           <div id="analysis-output" class="analysis-output" aria-live="polite" hidden>
-            <section id="reference-map" class="reference-map" aria-labelledby="reference-title"></section>
+            <section id="mention-map" class="reference-map mention-map" aria-labelledby="mention-title"></section>
             <ol id="proposition-list" class="proposition-list"></ol>
           </div>
         </div>

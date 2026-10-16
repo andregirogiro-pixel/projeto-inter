@@ -40,7 +40,8 @@ Critério de aceite: a fixture fornecida é aceita; cópias com referência queb
 
 ### Etapa 2 — interpretar um parágrafo
 
-- extrair proposições e participantes;
+- extrair proposições e participantes; **implementado**
+- detectar menções e seus intervalos no parágrafo e no contexto anterior; **implementado**
 - registrar referentes e alternativas de resolução;
 - representar negação, possibilidade, atribuição e relações entre proposições;
 - propor a ideia central com evidências e alternativas;

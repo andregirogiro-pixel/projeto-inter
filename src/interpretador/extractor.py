@@ -11,10 +11,10 @@ from .models import (
     Operators,
     Participant,
     Proposition,
-    ReferenceGroup,
-    Referent,
     Span,
 )
+from .referencias.detector import detectar_mencoes
+from .referencias.models import Mention
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,13 @@ class Token:
 
 @dataclass(frozen=True)
 class Sentence:
+    texto: str
+    inicio: int
+    fim: int
+
+
+@dataclass(frozen=True)
+class DetectedParticipant:
     texto: str
     inicio: int
     fim: int
@@ -132,24 +139,29 @@ def intervalo_evidencia(texto: str, periodo: Sentence, token: Token) -> tuple[in
     return inicio, fim
 
 
-def participante_mais_proximo(tokens: list[Token], indice_verbo: int, inicio_periodo: int) -> str:
+def participante_mais_proximo(
+    texto: str, tokens: list[Token], indice_verbo: int, inicio_periodo: int
+) -> DetectedParticipant | None:
     candidatos = [token for token in tokens[:indice_verbo] if token.inicio >= inicio_periodo]
     for indice in range(len(candidatos) - 1, -1, -1):
         token = candidatos[indice]
         if token.texto[:1].isupper() and token.texto not in INICIOS_NAO_NOMINAIS:
-            return token.texto
+            return DetectedParticipant(token.texto, token.inicio, token.fim)
         if token.normalizado in PRONOMES_SUJEITO:
-            return token.texto
+            return DetectedParticipant(token.texto, token.inicio, token.fim)
         if token.normalizado in NOMES_DE_PAPEL:
-            artigo = ""
+            inicio = token.inicio
             if indice > 0 and candidatos[indice - 1].normalizado in {"o", "a", "os", "as", "um", "uma"}:
-                artigo = candidatos[indice - 1].texto + " "
-            return artigo + token.texto
-    return "participante não resolvido"
+                inicio = candidatos[indice - 1].inicio
+            return DetectedParticipant(texto[inicio:token.fim], inicio, token.fim)
+    return None
 
 
-def participante_anteposto(texto: str, inicio_periodo: int, inicio_verbo: int) -> str | None:
-    trecho = texto[max(inicio_periodo, inicio_verbo - 110):inicio_verbo]
+def participante_anteposto(
+    texto: str, inicio_periodo: int, inicio_verbo: int
+) -> DetectedParticipant | None:
+    base = max(inicio_periodo, inicio_verbo - 110)
+    trecho = texto[base:inicio_verbo]
     match = re.search(
         r"\b((?:nenhum|nenhuma|o|a|os|as|um|uma)\s+[^\s,.;]+"
         r"(?:\s+(?!(?:havia|tivesse|tenha|foi|era|sido|estava)\b)[^\s,.;]+)?)"
@@ -157,7 +169,11 @@ def participante_anteposto(texto: str, inicio_periodo: int, inicio_verbo: int) -
         trecho,
         re.IGNORECASE,
     )
-    return match.group(1) if match else None
+    if not match:
+        return None
+    inicio = base + match.start(1)
+    fim = base + match.end(1)
+    return DetectedParticipant(texto[inicio:fim], inicio, fim)
 
 
 def complemento(texto: str, token: Token, fim_evidencia: int) -> str | None:
@@ -169,33 +185,18 @@ def complemento(texto: str, token: Token, fim_evidencia: int) -> str | None:
     return cauda if len(cauda) <= 86 else cauda[:83].rstrip() + "…"
 
 
-def participante_posposto(texto: str, inicio: int, fim: int) -> str | None:
+def participante_posposto(texto: str, inicio: int, fim: int) -> DetectedParticipant | None:
     trecho = texto[inicio:fim]
     match = re.search(
         r"\b(o|a|os|as|um|uma)\s+(gerente|engenheira|profissional|diretor|auditores)\b",
         trecho,
         re.IGNORECASE,
     )
-    return match.group() if match else None
-
-
-def resolver_referente(mencao: str, texto_anterior: str) -> Referent:
-    normalizada = mencao.casefold()
-    if normalizada == "helena":
-        return Referent(id="R1", rotulo="Helena")
-    if normalizada in {"ela", "dela", "a engenheira", "a profissional", "engenheira", "profissional"}:
-        if re.search(r"\bHelena\b", texto_anterior):
-            return Referent(id="R1", rotulo="Helena", hipotese=True)
-        return Referent(id="?", rotulo="referente feminino incerto", hipotese=True)
-    if normalizada in {"ele", "dele", "o gerente", "gerente"}:
-        if re.search(r"\bgerente\b", texto_anterior, re.IGNORECASE):
-            return Referent(id="R2", rotulo="gerente do banco", hipotese=True)
-        return Referent(id="?", rotulo="referente masculino incerto", hipotese=True)
-    if "gerente" in normalizada:
-        return Referent(id="R2", rotulo="gerente do banco")
-    if mencao == "participante não resolvido":
-        return Referent(id="?", rotulo="não resolvido", hipotese=True)
-    return Referent(id=f"M:{normalizada}", rotulo=mencao)
+    if not match:
+        return None
+    inicio_absoluto = inicio + match.start()
+    fim_absoluto = inicio + match.end()
+    return DetectedParticipant(texto[inicio_absoluto:fim_absoluto], inicio_absoluto, fim_absoluto)
 
 
 def extrair_operadores(texto: str, token: Token, inicio_evidencia: int, fim_evidencia: int) -> Operators:
@@ -213,8 +214,7 @@ def dentro_de_aspas(texto: str, indice: int) -> bool:
 
 def extrair_atribuicao(texto: str, token: Token, lema: str, periodo: Sentence, participante: str) -> Attribution:
     if dentro_de_aspas(texto, token.inicio):
-        fonte = "Helena (hipótese)" if re.search(r"Helena|engenheira", texto, re.IGNORECASE) else "falante não resolvido"
-        return Attribution(fonte=fonte, modo="fala citada", estado="citada")
+        return Attribution(fonte="falante não resolvido", modo="fala citada", estado="citada")
     if "?" in periodo.texto:
         return Attribution(fonte="enunciador", modo="pergunta", estado="questionada")
     if lema in VERBOS_FALA:
@@ -239,33 +239,46 @@ def calcular_confianca(participante: str, lema: str, operadores: Operators, atri
     return round(max(0.51, min(0.96, confianca)), 2)
 
 
-def construir_referentes(texto: str, proposicoes: list[Proposition]) -> list[ReferenceGroup]:
-    grupos: dict[str, tuple[str, set[str]]] = {}
-    for proposicao in proposicoes:
-        for participante in proposicao.participantes:
-            referente = participante.referente
-            if referente.id == "?":
-                continue
-            rotulo, mencoes = grupos.setdefault(referente.id, (referente.rotulo, set()))
-            mencoes.add(participante.mencao)
-
-    if re.search(r"\bHelena\b", texto):
-        _, mencoes = grupos.setdefault("R1", ("Helena", set()))
-        mencoes.update(match.group() for match in re.finditer(r"\b(Helena|ela|dela|engenheira|profissional|seu|sua)\b", texto, re.IGNORECASE))
-    if re.search(r"\bgerente\b", texto, re.IGNORECASE):
-        _, mencoes = grupos.setdefault("R2", ("gerente do banco", set()))
-        mencoes.update(match.group() for match in re.finditer(r"\b(gerente(?: do banco)?|ele|dele)\b", texto, re.IGNORECASE))
-
-    return [
-        ReferenceGroup(id=identificador, rotulo=rotulo, mencoes=sorted(mencoes, key=str.casefold))
-        for identificador, (rotulo, mencoes) in list(grupos.items())[:8]
+def encontrar_mencao(
+    mencoes: list[Mention], participante: DetectedParticipant
+) -> Mention | None:
+    exatas = [
+        mencao for mencao in mencoes
+        if mencao.origem == "paragrafo"
+        and mencao.intervalo.inicio == participante.inicio
+        and mencao.intervalo.fim == participante.fim
     ]
+    if exatas:
+        return exatas[0]
+    continentes = [
+        mencao for mencao in mencoes
+        if mencao.origem == "paragrafo"
+        and mencao.intervalo.inicio <= participante.inicio
+        and mencao.intervalo.fim >= participante.fim
+    ]
+    return min(
+        continentes,
+        key=lambda mencao: mencao.intervalo.fim - mencao.intervalo.inicio,
+        default=None,
+    )
 
 
-def analisar_paragrafo(texto: str) -> AnalysisResponse:
+def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> AnalysisResponse:
     texto = texto.strip()
     if not texto:
         raise ValueError("O parágrafo não pode estar vazio.")
+    contexto_anterior = contexto_anterior.strip() if contexto_anterior else None
+
+    mencoes_contexto = (
+        detectar_mencoes(contexto_anterior, "contexto_anterior", 1)
+        if contexto_anterior else []
+    )
+    mencoes_paragrafo = detectar_mencoes(
+        texto,
+        "paragrafo",
+        len(mencoes_contexto) + 1,
+    )
+    mencoes = [*mencoes_contexto, *mencoes_paragrafo]
 
     tokens = tokenizar(texto)
     periodos = segmentar_periodos(texto)
@@ -281,43 +294,52 @@ def analisar_paragrafo(texto: str) -> AnalysisResponse:
 
         periodo = next((item for item in periodos if item.inicio <= token.inicio < item.fim), periodos[0])
         inicio, fim = intervalo_evidencia(texto, periodo, token)
-        participante = (
+        participante_detectado = (
             participante_anteposto(texto, periodo.inicio, token.inicio)
-            or participante_mais_proximo(tokens, indice, periodo.inicio)
+            or participante_mais_proximo(texto, tokens, indice, periodo.inicio)
         )
-        if participante == "participante não resolvido" and lema in VERBOS_FALA:
-            participante = participante_posposto(texto, token.fim, periodo.fim) or participante
-        referente = resolver_referente(participante, texto[:token.inicio])
+        if participante_detectado is None and lema in VERBOS_FALA:
+            participante_detectado = participante_posposto(texto, token.fim, periodo.fim)
+        participante = participante_detectado.texto if participante_detectado else "participante não resolvido"
         objeto = complemento(texto, token, fim)
         operadores = extrair_operadores(texto, token, inicio, fim)
         atribuicao = extrair_atribuicao(texto, token, lema, periodo, participante)
         descricao = f"{participante} · {lema}" + (f" · {objeto}" if objeto else "")
+        mencao = encontrar_mencao(mencoes_paragrafo, participante_detectado) if participante_detectado else None
+        participantes = []
+        if participante_detectado and mencao:
+            participantes.append(Participant(
+                papel="participante_principal",
+                mencao=participante_detectado.texto,
+                mencao_id=mencao.id,
+                intervalo=Span(inicio=participante_detectado.inicio, fim=participante_detectado.fim),
+            ))
         proposicoes.append(Proposition(
             id=f"P{len(proposicoes) + 1}",
             predicado=lema,
             forma_textual=token.texto,
             descricao=descricao,
-            participantes=[Participant(papel="participante_principal", mencao=participante, referente=referente)],
+            participantes=participantes,
             operadores=operadores,
             atribuicao=atribuicao,
             evidencia=Evidence(texto=texto[inicio:fim], intervalo=Span(inicio=inicio, fim=fim)),
             confianca=calcular_confianca(participante, lema, operadores, atribuicao),
         ))
 
-    referentes = construir_referentes(texto, proposicoes)
     alertas: list[str] = []
     if not proposicoes:
         alertas.append("Nenhum predicado foi identificado com segurança; revisão manual necessária.")
-    if any(participante.referente.id == "?" for prop in proposicoes for participante in prop.participantes):
-        alertas.append("Há participantes ou referências não resolvidos.")
+    if any(not prop.participantes for prop in proposicoes):
+        alertas.append("Há proposições cujo participante principal ainda não foi localizado como menção.")
 
     return AnalysisResponse(
         paragrafo=texto,
+        contexto_anterior=contexto_anterior,
         proposicoes=proposicoes,
-        referentes=referentes,
+        mencoes=mencoes,
         resumo=AnalysisSummary(
             proposicoes=len(proposicoes),
-            referentes=len(referentes),
+            mencoes=len(mencoes),
             negacoes=sum(prop.operadores.negacao is not None for prop in proposicoes),
             atribuicoes_marcadas=sum(prop.atribuicao.modo != "asserção narrativa" for prop in proposicoes),
         ),

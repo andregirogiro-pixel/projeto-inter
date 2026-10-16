@@ -13,7 +13,7 @@ DIST_DIR = PROJECT_ROOT / "dist"
 
 app = FastAPI(
     title="Interpretador de Proposições",
-    version="0.1.0",
+    version="0.2.0",
     description="Extração explicável da estrutura básica de proposições em português.",
 )
 app.mount("/static", StaticFiles(directory=DIST_DIR), name="static")
@@ -31,5 +31,5 @@ def health() -> dict[str, str]:
 
 @app.post("/api/analisar", response_model=AnalysisResponse)
 def analisar(entrada: AnalysisRequest) -> AnalysisResponse:
-    return analisar_paragrafo(entrada.paragrafo)
+    return analisar_paragrafo(entrada.paragrafo, entrada.contexto_anterior)
 

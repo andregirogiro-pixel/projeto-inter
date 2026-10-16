@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class AnalysisRequest(BaseModel):
     paragrafo: str = Field(max_length=5_000)
+    contexto_anterior: str | None = Field(default=None, max_length=10_000)
 
     @field_validator("paragrafo")
     @classmethod
@@ -13,6 +14,14 @@ class AnalysisRequest(BaseModel):
         if not value:
             raise ValueError("O parágrafo não pode estar vazio.")
         return value
+
+    @field_validator("contexto_anterior")
+    @classmethod
+    def normalizar_contexto(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
 
 
 class Span(BaseModel):
@@ -26,16 +35,12 @@ class Evidence(BaseModel):
     intervalo: Span
 
 
-class Referent(BaseModel):
-    id: str
-    rotulo: str
-    hipotese: bool = False
-
-
 class Participant(BaseModel):
     papel: str
     mencao: str
-    referente: Referent
+    mencao_id: str
+    intervalo: Span
+    referente_id: str | None = None
 
 
 class Operators(BaseModel):
@@ -61,24 +66,24 @@ class Proposition(BaseModel):
     confianca: float = Field(ge=0, le=1)
 
 
-class ReferenceGroup(BaseModel):
-    id: str
-    rotulo: str
-    mencoes: list[str]
-
-
 class AnalysisSummary(BaseModel):
     proposicoes: int
-    referentes: int
+    mencoes: int
     negacoes: int
     atribuicoes_marcadas: int
 
 
 class AnalysisResponse(BaseModel):
-    schema_version: Literal["0.1.0"] = "0.1.0"
+    schema_version: Literal["0.2.0"] = "0.2.0"
     paragrafo: str
+    contexto_anterior: str | None = None
     proposicoes: list[Proposition]
-    referentes: list[ReferenceGroup]
+    mencoes: list["Mention"]
     resumo: AnalysisSummary
     alertas: list[str]
+
+
+from .referencias.models import Mention  # noqa: E402
+
+AnalysisResponse.model_rebuild()
 
