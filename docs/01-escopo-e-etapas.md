@@ -43,7 +43,7 @@ Critério de aceite: a fixture fornecida é aceita; cópias com referência queb
 - extrair proposições e participantes; **implementado**
 - detectar menções e seus intervalos no parágrafo e no contexto anterior; **implementado**
 - registrar referentes e alternativas de resolução; **implementado — contrato 0.3.0**
-- representar negação, possibilidade, atribuição e relações entre proposições;
+- representar negação, possibilidade, atribuição e relações entre proposições; **implementado — contrato 0.4.0**
 - propor a ideia central com evidências e alternativas;
 - marcar IDs do conteúdo considerado essencial.
 
@@ -54,6 +54,12 @@ Critério de aceite: cada proposição e cada hipótese relevante aponta para um
 O motor gera candidatos textualmente anteriores, aplica restrições de classe semântica, gênero, número, encaixamento e papel humano, e calcula uma pontuação explicável. As decisões podem ficar `resolvida`, `ambigua`, `nao_resolvida` ou introduzir um `novo_referente`. Possessivos usam a relação `possuidor`; as demais retomadas usam `identidade`.
 
 Referentes e decisões são validados para impedir IDs inexistentes, uma menção em dois grupos ou evidências divergentes dos intervalos originais. Os limiares atuais são heurísticos e deverão ser calibrados com um conjunto anotado.
+
+#### Grafo proposicional implementado
+
+O contrato `0.4.0` acrescenta papéis semânticos dos participantes, operadores com escopo explícito, quadros de atribuição e relações tipadas. A proximidade deixa de ser suficiente para propagar modalidade ou estado enunciativo: no exemplo de referência, `seria` afeta `P6/P7`, `capaz de` afeta `P7` e as relativas `P8/P9` ficam registradas como informação pressuposta.
+
+As relações e os operadores apontam para intervalos exatos do parágrafo. O validador rejeita escopos inexistentes, extremidades quebradas, proposições sem quadro de atribuição e evidências que não reproduzam o texto original.
 
 ### Etapa 3 — gerar textos
 

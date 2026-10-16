@@ -15,6 +15,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; }
 
 body {
@@ -68,6 +70,7 @@ button { cursor: pointer; }
 
 .version-pill,
 .status-chip,
+.polarity-chip,
 .confidence,
 .mini-chip {
   border-radius: 999px;
@@ -394,6 +397,75 @@ textarea.context-textarea:focus {
 .reference-map header { align-items: flex-start; }
 .reference-map header p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
 
+.graph-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.graph-map h4,
+.relations-section h4 {
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.graph-list,
+.relation-list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  list-style: none;
+}
+
+.graph-item {
+  min-width: 0;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dde4df;
+  border-radius: 8px;
+  background: #f6faf7;
+}
+
+.graph-item.negacao { border-left: 3px solid var(--amber); }
+.graph-item.modalidade { border-left: 3px solid #53778b; }
+.attribution-item { border-left: 3px solid var(--green-2); }
+
+.graph-id {
+  color: var(--amber);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  font-weight: 850;
+}
+
+.graph-item strong { display: block; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.graph-item small { display: block; margin-top: 2px; color: var(--muted); font-size: 7px; }
+.scope-list { color: var(--green-2); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 7px; font-weight: 800; }
+
+.relations-section { margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+.relation-item {
+  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  background: #f7f4ed;
+  font-size: 8px;
+}
+
+.relation-endpoint { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.relation-type { color: var(--green-2); text-align: center; }
+.relation-type small { display: block; margin-top: 1px; color: var(--muted); }
+.relation-arrow { color: var(--amber); font-weight: 850; }
+
 .referent-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -668,6 +740,7 @@ textarea.context-textarea:focus {
 .card-badges { display: flex; align-items: center; gap: 6px; }
 
 .status-chip,
+.polarity-chip,
 .confidence {
   padding: 5px 8px;
   font-size: 9px;
@@ -679,6 +752,9 @@ textarea.context-textarea:focus {
 .status-chip { color: var(--green); background: var(--mint); }
 .status-chip.questionada { color: #426172; background: var(--blue-soft); }
 .status-chip.citada { color: #7c4a18; background: var(--amber-soft); }
+.status-chip.pressuposta { color: #64517b; background: #ece5f3; }
+.polarity-chip { color: var(--green); background: #edf3ef; }
+.polarity-chip.negativa { color: #8a4e16; background: var(--amber-soft); }
 .confidence { color: var(--muted); border: 1px solid var(--line); }
 
 .proposition-title {
@@ -708,6 +784,9 @@ textarea.context-textarea:focus {
 }
 
 .field dd { margin: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.participant-line { display: block; }
+.participant-line + .participant-line { margin-top: 2px; }
+.participant-line strong { color: var(--green-2); font-size: 9px; text-transform: uppercase; }
 
 .operator-none { color: #8b928e; }
 .operator-alert { color: #8a4e16; font-weight: 700; }
@@ -781,6 +860,9 @@ footer {
   .field.full { grid-column: auto; }
   .mention-list { grid-template-columns: 1fr; }
   .referent-grid { grid-template-columns: 1fr; }
+  .graph-columns { grid-template-columns: 1fr; }
+  .relation-item { grid-template-columns: 1fr auto; }
+  .relation-type { text-align: left; }
   .text-button.muted { margin-left: 0; }
   footer { flex-direction: column; }
 }

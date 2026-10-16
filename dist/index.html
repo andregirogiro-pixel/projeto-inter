@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Extração explicável de proposições e resolução de referências em parágrafos em português." />
+    <meta name="description" content="Grafo explicável de proposições, referências, operadores e atribuições em português." />
     <title>Interpretador de Proposições</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
@@ -16,7 +16,7 @@
           <small>estrutura proposicional</small>
         </span>
       </a>
-      <span class="version-pill">Protótipo · etapa 2</span>
+      <span class="version-pill">Protótipo · etapa 3</span>
     </header>
 
     <main id="inicio">
@@ -99,6 +99,7 @@
           </div>
 
           <div id="analysis-output" class="analysis-output" aria-live="polite" hidden>
+            <section id="graph-map" class="reference-map graph-map" aria-labelledby="graph-title"></section>
             <section id="reference-map" class="reference-map" aria-labelledby="reference-title"></section>
             <section id="mention-map" class="reference-map mention-map" aria-labelledby="mention-title"></section>
             <ol id="proposition-list" class="proposition-list"></ol>

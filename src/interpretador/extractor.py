@@ -16,6 +16,7 @@ from .models import (
 from .referencias.detector import detectar_mencoes
 from .referencias.models import Mention
 from .referencias.resolvedor import resolver_referencias
+from .grafo import construir_grafo
 
 
 @dataclass(frozen=True)
@@ -228,10 +229,8 @@ def participante_posposto(texto: str, inicio: int, fim: int) -> DetectedParticip
 
 def extrair_operadores(texto: str, token: Token, inicio_evidencia: int, fim_evidencia: int) -> Operators:
     esquerda = texto[max(inicio_evidencia, token.inicio - 55):token.inicio].casefold()
-    janela = texto[max(0, token.inicio - 65):min(len(texto), token.fim + 65)].casefold()
     negacoes = re.findall(r"\b(não|nunca|jamais|nenhum|nenhuma|nem)\b", esquerda)
-    modalidade = next((tipo for palavra, tipo in MODAIS.items() if re.search(rf"\b{palavra}\b", janela)), None)
-    return Operators(negacao=negacoes[-1] if negacoes else None, modalidade=modalidade)
+    return Operators(negacao=negacoes[-1] if negacoes else None, modalidade=None)
 
 
 def dentro_de_aspas(texto: str, indice: int) -> bool:
@@ -341,15 +340,16 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
         if participante_detectado and mencao:
             participantes.append(Participant(
                 papel="participante_principal",
-                mencao=participante_detectado.texto,
+                mencao=mencao.texto,
                 mencao_id=mencao.id,
-                intervalo=Span(inicio=participante_detectado.inicio, fim=participante_detectado.fim),
+                intervalo=Span(inicio=mencao.intervalo.inicio, fim=mencao.intervalo.fim),
                 referente_id=resultado_referencias.referente_por_mencao.get(mencao.id),
             ))
         proposicoes.append(Proposition(
             id=f"P{len(proposicoes) + 1}",
             predicado=lema,
             forma_textual=token.texto,
+            predicado_intervalo=Span(inicio=token.inicio, fim=token.fim),
             descricao=descricao,
             participantes=participantes,
             operadores=operadores,
@@ -357,6 +357,14 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
             evidencia=Evidence(texto=texto[inicio:fim], intervalo=Span(inicio=inicio, fim=fim)),
             confianca=calcular_confianca(participante, lema, operadores, atribuicao),
         ))
+
+    grafo = construir_grafo(
+        texto,
+        contexto_anterior,
+        proposicoes,
+        mencoes,
+        resultado_referencias,
+    )
 
     alertas: list[str] = []
     if not proposicoes:
@@ -377,6 +385,9 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
         mencoes=mencoes,
         referentes=resultado_referencias.referentes,
         resolucoes=resultado_referencias.resolucoes,
+        operadores_escopo=grafo.operadores,
+        quadros_atribuicao=grafo.quadros_atribuicao,
+        relacoes=grafo.relacoes,
         resumo=AnalysisSummary(
             proposicoes=len(proposicoes),
             mencoes=len(mencoes),
@@ -385,6 +396,8 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
                 item.estado == "resolvida" for item in resultado_referencias.resolucoes
             ),
             resolucoes_ambiguas=len(ambiguas),
+            operadores=len(grafo.operadores),
+            relacoes=len(grafo.relacoes),
             negacoes=sum(prop.operadores.negacao is not None for prop in proposicoes),
             atribuicoes_marcadas=sum(prop.atribuicao.modo != "asserção narrativa" for prop in proposicoes),
         ),

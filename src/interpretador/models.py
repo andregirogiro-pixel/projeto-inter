@@ -58,10 +58,13 @@ class Proposition(BaseModel):
     id: str
     predicado: str
     forma_textual: str
+    predicado_intervalo: Span
     descricao: str
     participantes: list[Participant]
     operadores: Operators
     atribuicao: Attribution
+    atribuicao_id: str | None = None
+    polaridade: Literal["positiva", "negativa"] = "positiva"
     evidencia: Evidence
     confianca: float = Field(ge=0, le=1)
 
@@ -72,23 +75,29 @@ class AnalysisSummary(BaseModel):
     referentes: int
     resolucoes_resolvidas: int
     resolucoes_ambiguas: int
+    operadores: int
+    relacoes: int
     negacoes: int
     atribuicoes_marcadas: int
 
 
 class AnalysisResponse(BaseModel):
-    schema_version: Literal["0.3.0"] = "0.3.0"
+    schema_version: Literal["0.4.0"] = "0.4.0"
     paragrafo: str
     contexto_anterior: str | None = None
     proposicoes: list[Proposition]
     mencoes: list["Mention"]
     referentes: list["Referent"]
     resolucoes: list["ReferenceResolution"]
+    operadores_escopo: list["ScopeOperator"]
+    quadros_atribuicao: list["AttributionFrame"]
+    relacoes: list["PropositionRelation"]
     resumo: AnalysisSummary
     alertas: list[str]
 
 
 from .referencias.models import Mention, Referent, ReferenceResolution  # noqa: E402
+from .grafo.models import AttributionFrame, PropositionRelation, ScopeOperator  # noqa: E402
 
 AnalysisResponse.model_rebuild()
 

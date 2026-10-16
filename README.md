@@ -6,7 +6,7 @@ O primeiro recorte do produto é deliberadamente pequeno: interpretar **um pará
 
 ## Estado atual
 
-O projeto está na **Etapa 2 — resolução de referências**. O motor e a API são escritos em Python; a interface funcional está em `dist/`. Os anexos originais foram preservados em:
+O projeto está na **Etapa 3 — grafo proposicional e escopo**. O motor e a API são escritos em Python; a interface funcional está em `dist/`. Os anexos originais foram preservados em:
 
 - `fixtures/vetorizacao-28.json`: exemplo real de entrada;
 - `docs/referencias/arquitetura_interpretacao_fundamentada_v1.pdf`: referência conceitual.
@@ -15,18 +15,21 @@ O plano e os critérios de aceite estão em [`docs/01-escopo-e-etapas.md`](docs/
 
 ## Interface atual
 
-A página recebe um parágrafo principal, um contexto anterior opcional e chama a API Python local. Ela produz proposições, menções e grupos de referentes `R1/R2`. Cada decisão mostra confiança, razões, alternativas e evidências. Possessivos registram uma relação de possuidor, sem confundir o possuidor com o objeto possuído. Os participantes das proposições apontam para um referente somente quando existe uma decisão segura.
+A página recebe um parágrafo principal, um contexto anterior opcional e chama a API Python local. Ela produz proposições, menções, grupos de referentes `R1/R2` e um grafo com operadores, quadros de atribuição e relações. Cada decisão mostra confiança, razões, alternativas e evidências. Possessivos registram uma relação de possuidor, sem confundir o possuidor com o objeto possuído. Os participantes recebem papéis semânticos como agente, paciente, destinatário e meio.
 
 Esta versão continua sendo um extrator heurístico demonstrativo. Resoluções ambíguas ou sem antecedente permanecem explícitas; confiança não representa uma probabilidade calibrada.
 
-### Contrato `0.3.0`
+### Contrato `0.4.0`
 
 A resposta de `POST /api/analisar` inclui:
 
 - `mencoes`: ocorrências com intervalos exatos;
 - `referentes`: agrupamentos de menções;
 - `resolucoes`: decisão, tipo de relação, razões, alternativas e evidências;
-- `proposicoes[].participantes[].referente_id`: vínculo seguro com o grupo referencial.
+- `proposicoes[].participantes[]`: papéis semânticos vinculados a menções e referentes;
+- `operadores_escopo`: negação e modalidade com marcador e proposições afetadas;
+- `quadros_atribuicao`: fonte, modo, estado e conteúdo atribuído;
+- `relacoes`: arestas explicáveis entre proposições e referentes.
 
 ## Baixar e executar
 

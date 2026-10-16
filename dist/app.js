@@ -11,6 +11,7 @@ const clearButton = document.querySelector("#clear");
 const emptyState = document.querySelector("#empty-state");
 const analysisOutput = document.querySelector("#analysis-output");
 const propositionList = document.querySelector("#proposition-list");
+const graphMap = document.querySelector("#graph-map");
 const referenceMap = document.querySelector("#reference-map");
 const mentionMap = document.querySelector("#mention-map");
 const resultStats = document.querySelector("#result-stats");
@@ -46,6 +47,61 @@ function stateLabel(state) {
     nao_resolvida: "não resolvida",
     novo_referente: "novo referente"
   })[state] || state;
+}
+
+function humanize(value) {
+  return String(value || "").replaceAll("_", " ");
+}
+
+function renderGraph(data) {
+  const propById = new Map(data.proposicoes.map(item => [item.id, item]));
+  const referentById = new Map(data.referentes.map(item => [item.id, item]));
+  const endpoint = id => {
+    const prop = propById.get(id);
+    if (prop) return `${id} · ${prop.predicado}`;
+    const referent = referentById.get(id);
+    return referent ? `${id} · ${referent.rotulo}` : id;
+  };
+  const operators = data.operadores_escopo.map(item => `
+    <li class="graph-item operator-item ${escapeHtml(item.tipo)}">
+      <span class="graph-id">${escapeHtml(item.id)}</span>
+      <div><strong>${escapeHtml(humanize(item.subtipo))}</strong><small>${escapeHtml(item.tipo)} · “${escapeHtml(item.marcador)}”</small></div>
+      <span class="scope-list">${item.escopo.map(id => escapeHtml(id)).join(" · ")}</span>
+    </li>
+  `).join("");
+  const frames = data.quadros_atribuicao.map(item => `
+    <li class="graph-item attribution-item">
+      <span class="graph-id">${escapeHtml(item.id)}</span>
+      <div><strong>${escapeHtml(humanize(item.modo))}</strong><small>${escapeHtml(item.fonte.rotulo)} · ${escapeHtml(item.estado)}</small></div>
+      <span class="scope-list">${item.escopo.map(id => escapeHtml(id)).join(" · ")}</span>
+    </li>
+  `).join("");
+  const relations = data.relacoes.map(item => `
+    <li class="relation-item">
+      <span class="relation-endpoint">${escapeHtml(endpoint(item.origem_id))}</span>
+      <span class="relation-type">${escapeHtml(humanize(item.tipo))}${item.marcador ? `<small>“${escapeHtml(item.marcador)}”</small>` : ""}</span>
+      <span class="relation-arrow" aria-hidden="true">→</span>
+      <span class="relation-endpoint">${escapeHtml(endpoint(item.destino_id))}</span>
+    </li>
+  `).join("");
+
+  graphMap.innerHTML = `
+    <header>
+      <div>
+        <h3 id="graph-title">Grafo proposicional</h3>
+        <p>Escopos e relações calculados sem propagação automática por proximidade.</p>
+      </div>
+      <span>${data.relacoes.length} ${data.relacoes.length === 1 ? "relação" : "relações"}</span>
+    </header>
+    <div class="graph-columns">
+      <section><h4>Operadores</h4><ul class="graph-list">${operators || `<li class="quiet-message">Nenhum operador marcado.</li>`}</ul></section>
+      <section><h4>Atribuição</h4><ul class="graph-list">${frames || `<li class="quiet-message">Nenhum quadro formado.</li>`}</ul></section>
+    </div>
+    <section class="relations-section">
+      <h4>Relações</h4>
+      <ul class="relation-list">${relations || `<li class="quiet-message">Nenhuma relação marcada.</li>`}</ul>
+    </section>
+  `;
 }
 
 function renderReferenceCard(referent, mentionById, resolutionByMention) {
@@ -168,25 +224,31 @@ function renderMentions(mentions, resolutions) {
   `;
 }
 
-function renderPropositions(propositions) {
+function renderPropositions(propositions, frames) {
+  const frameById = new Map(frames.map(item => [item.id, item]));
   propositionList.innerHTML = propositions.map((prop, index) => {
-    const participant = prop.participantes[0] || null;
+    const frame = frameById.get(prop.atribuicao_id);
     const negation = prop.operadores.negacao ? `sim — marcador “${prop.operadores.negacao}”` : "não detectada";
-    const modality = prop.operadores.modalidade || "não marcada";
+    const modality = prop.operadores.modalidade ? humanize(prop.operadores.modalidade) : "não marcada";
     const negationClass = prop.operadores.negacao ? "operator-alert" : "operator-none";
     const modalityClass = prop.operadores.modalidade ? "operator-alert" : "operator-none";
-    const participantText = participant
-      ? `${escapeHtml(participant.mencao)} · ${escapeHtml(participant.papel)}`
+    const participantText = prop.participantes.length
+      ? prop.participantes.map(participant => `<span class="participant-line"><strong>${escapeHtml(humanize(participant.papel))}</strong> · ${escapeHtml(participant.mencao)}</span>`).join("")
       : `<span class="operator-alert">não localizado</span>`;
-    const mentionText = participant
-      ? `${escapeHtml(participant.mencao_id)} · [${participant.intervalo.inicio}, ${participant.intervalo.fim})`
+    const mentionText = prop.participantes.length
+      ? prop.participantes.map(participant => `<span class="participant-line">${escapeHtml(participant.mencao_id)} · [${participant.intervalo.inicio}, ${participant.intervalo.fim})</span>`).join("")
       : `<span class="operator-none">sem menção vinculada</span>`;
+    const referentText = prop.participantes.length
+      ? prop.participantes.map(participant => `<span class="participant-line ${participant.referente_id ? "reference-value" : "operator-none"}">${escapeHtml(humanize(participant.papel))}: ${participant.referente_id ? escapeHtml(participant.referente_id) : "não resolvido"}</span>`).join("")
+      : `<span class="operator-none">não resolvido</span>`;
+    const attributionState = frame?.estado || prop.atribuicao.estado;
     return `
       <li class="proposition-card" style="animation-delay:${Math.min(index * 45, 360)}ms">
         <div class="card-top">
           <span class="proposition-id">${escapeHtml(prop.id)}</span>
           <div class="card-badges">
-            <span class="status-chip ${escapeHtml(prop.atribuicao.estado)}">${escapeHtml(prop.atribuicao.estado)}</span>
+            <span class="status-chip ${escapeHtml(attributionState)}">${escapeHtml(attributionState)}</span>
+            <span class="polarity-chip ${escapeHtml(prop.polaridade)}">${escapeHtml(prop.polaridade)}</span>
             <span class="confidence">${Math.round(prop.confianca * 100)}% confiança</span>
           </div>
         </div>
@@ -206,11 +268,11 @@ function renderPropositions(propositions) {
           </div>
           <div class="field">
             <dt>Referente</dt>
-            <dd class="${participant?.referente_id ? "reference-value" : "operator-none"}">${participant?.referente_id ? escapeHtml(participant.referente_id) : "não resolvido"}</dd>
+            <dd>${referentText}</dd>
           </div>
           <div class="field">
             <dt>Atribuição</dt>
-            <dd>${escapeHtml(prop.atribuicao.fonte)} · ${escapeHtml(prop.atribuicao.modo)}</dd>
+            <dd>${escapeHtml(frame?.fonte.rotulo || prop.atribuicao.fonte)} · ${escapeHtml(humanize(frame?.modo || prop.atribuicao.modo))}${prop.atribuicao_id ? ` · ${escapeHtml(prop.atribuicao_id)}` : ""}</dd>
           </div>
           <div class="field">
             <dt>Negação</dt>
@@ -219,6 +281,10 @@ function renderPropositions(propositions) {
           <div class="field">
             <dt>Modalidade</dt>
             <dd class="${modalityClass}">${escapeHtml(modality)}</dd>
+          </div>
+          <div class="field">
+            <dt>Polaridade</dt>
+            <dd>${escapeHtml(prop.polaridade)}</dd>
           </div>
         </dl>
         <blockquote class="evidence">“${escapeHtml(prop.evidencia.texto)}”<span>[${prop.evidencia.intervalo.inicio}, ${prop.evidencia.intervalo.fim})</span></blockquote>
@@ -230,6 +296,7 @@ function renderPropositions(propositions) {
 function renderError(message) {
   emptyState.hidden = true;
   analysisOutput.hidden = false;
+  graphMap.innerHTML = "";
   referenceMap.innerHTML = "";
   mentionMap.innerHTML = "";
   propositionList.innerHTML = `<li class="error-state">${escapeHtml(message)}</li>`;
@@ -261,9 +328,10 @@ async function renderAnalysis() {
 
     emptyState.hidden = true;
     analysisOutput.hidden = false;
+    renderGraph(data);
     renderReferences(data.referentes, data.resolucoes, data.mencoes);
     renderMentions(data.mencoes, data.resolucoes);
-    if (data.proposicoes.length) renderPropositions(data.proposicoes);
+    if (data.proposicoes.length) renderPropositions(data.proposicoes, data.quadros_atribuicao);
     else propositionList.innerHTML = `<li class="error-state">${escapeHtml(data.alertas[0] || "Nenhuma proposição identificada.")}</li>`;
 
     const summary = data.resumo;
@@ -273,6 +341,8 @@ async function renderAnalysis() {
       <span class="mini-chip">${summary.referentes} referentes</span>
       <span class="mini-chip">${summary.resolucoes_resolvidas} resolvidas</span>
       ${summary.resolucoes_ambiguas ? `<span class="mini-chip warning">${summary.resolucoes_ambiguas} ambíguas</span>` : ""}
+      <span class="mini-chip">${summary.operadores} operadores</span>
+      <span class="mini-chip">${summary.relacoes} relações</span>
       <span class="mini-chip">${summary.negacoes} negações</span>
       <span class="mini-chip">${summary.atribuicoes_marcadas} atribuídas</span>
     `;

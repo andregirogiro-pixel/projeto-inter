@@ -46,6 +46,8 @@ def verificar_compatibilidade(atual: Mention, candidato: Mention) -> tuple[bool,
         and classe_atual != classe_candidato
     ):
         return False, ["classes semânticas incompatíveis"]
+    if classe_atual == "pessoa" and classe_candidato == "desconhecida":
+        return False, ["candidato sem evidência de que represente uma pessoa"]
 
     if classe_atual == "pessoa" or atual.tipo in {"pronome_pessoal", "pronome_possessivo"}:
         genero_atual = atual.caracteristicas.genero
