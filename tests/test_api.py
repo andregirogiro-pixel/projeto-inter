@@ -11,8 +11,9 @@ class ApiTests(unittest.TestCase):
 
     def test_endpoint_de_analise(self) -> None:
         resultado = analisar(AnalysisRequest(paragrafo="Helena percebeu o problema."))
-        self.assertEqual(resultado.schema_version, "0.2.0")
+        self.assertEqual(resultado.schema_version, "0.3.0")
         self.assertGreaterEqual(resultado.resumo.proposicoes, 1)
+        self.assertGreaterEqual(resultado.resumo.referentes, 1)
 
     def test_rotas_publicadas_no_openapi(self) -> None:
         caminhos = app.openapi()["paths"]

@@ -13,8 +13,8 @@ DIST_DIR = PROJECT_ROOT / "dist"
 
 app = FastAPI(
     title="Interpretador de Proposições",
-    version="0.2.0",
-    description="Extração explicável da estrutura básica de proposições em português.",
+    version="0.3.0",
+    description="Extração explicável de proposições e resolução de referências em português.",
 )
 app.mount("/static", StaticFiles(directory=DIST_DIR), name="static")
 

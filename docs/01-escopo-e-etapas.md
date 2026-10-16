@@ -42,12 +42,18 @@ Critério de aceite: a fixture fornecida é aceita; cópias com referência queb
 
 - extrair proposições e participantes; **implementado**
 - detectar menções e seus intervalos no parágrafo e no contexto anterior; **implementado**
-- registrar referentes e alternativas de resolução;
+- registrar referentes e alternativas de resolução; **implementado — contrato 0.3.0**
 - representar negação, possibilidade, atribuição e relações entre proposições;
 - propor a ideia central com evidências e alternativas;
 - marcar IDs do conteúdo considerado essencial.
 
 Critério de aceite: cada proposição e cada hipótese relevante aponta para um ou mais intervalos válidos do texto original.
+
+#### Resolução referencial implementada
+
+O motor gera candidatos textualmente anteriores, aplica restrições de classe semântica, gênero, número, encaixamento e papel humano, e calcula uma pontuação explicável. As decisões podem ficar `resolvida`, `ambigua`, `nao_resolvida` ou introduzir um `novo_referente`. Possessivos usam a relação `possuidor`; as demais retomadas usam `identidade`.
+
+Referentes e decisões são validados para impedir IDs inexistentes, uma menção em dois grupos ou evidências divergentes dos intervalos originais. Os limiares atuais são heurísticos e deverão ser calibrados com um conjunto anotado.
 
 ### Etapa 3 — gerar textos
 

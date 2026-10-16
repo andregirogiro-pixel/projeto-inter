@@ -31,7 +31,7 @@ class Candidate:
 
 TOKEN_RE = re.compile(r"[^\W\d_]+(?:[-'][^\W\d_]+)*", re.UNICODE)
 
-PRONOMES_PESSOAIS = {"ele", "ela", "eles", "elas"}
+PRONOMES_PESSOAIS = {"eu", "tu", "você", "nós", "vocês", "ele", "ela", "eles", "elas"}
 PRONOMES_POSSESSIVOS = {"dele", "dela", "deles", "delas", "seu", "sua", "seus", "suas", "meu", "minha", "meus", "minhas"}
 DETERMINANTES = {
     "o", "a", "os", "as", "um", "uma", "uns", "umas", "nenhum", "nenhuma",
@@ -45,18 +45,27 @@ LIMITES = {
     "havia", "tivesse", "tenha", "foi", "era", "seria", "sido", "estava", "está",
     "sentou", "percebeu", "assinou", "assinado", "bombardeou", "encontrada", "encontrado",
     "perder", "revisando", "murmurou", "morria", "abandonou", "desistiu", "enviado",
-    "acredita", "construiu", "transformando", "frear",
+    "acredita", "construiu", "transformando", "frear", "já", "enviou",
+    "respondeu", "criticou", "desistiria", "insistiu", "revisou",
 }
 INICIOS_DE_PERIODO = {"Quando", "Durante", "Apesar", "No", "Na", "Você", "Claro", "Enquanto", "Embora", "Porque", "Pois"}
 
 TERMOS_PESSOA = {"gerente", "engenheira", "profissional", "diretor", "auditor", "auditores", "mensageiro", "alguém", "pessoa"}
 TERMOS_LUGAR = {"praça", "banco", "campo"}
-TERMOS_EVENTO = {"reunião", "revés", "crise", "carreira"}
+TERMOS_EVENTO = {"reunião", "revés", "crise"}
 TERMOS_OBJETO = {"contrato", "proposta", "cálculos", "planilhas", "bateria", "celular", "documento", "projeto", "recursos", "argumentos"}
+NOMES_FEMININOS = {"helena", "ana", "maria", "clara", "beatriz", "luísa", "luisa"}
+NOMES_MASCULINOS = {"joão", "joao", "josé", "jose", "paulo", "carlos", "pedro"}
 
 
 def _tokens(texto: str) -> list[Token]:
     return [Token(match.group(), match.start(), match.end()) for match in TOKEN_RE.finditer(texto)]
+
+
+def _eh_limite_nominal(token: Token) -> bool:
+    if token.normalizado in LIMITES:
+        return True
+    return bool(re.search(r"(?:ou|aram|eram|iram|ava|avam|iam|iria)$", token.normalizado))
 
 
 def _classe_semantica(texto: str, tipo: MentionType) -> str:
@@ -72,21 +81,31 @@ def _classe_semantica(texto: str, tipo: MentionType) -> str:
     return "desconhecida"
 
 
-def _genero(texto: str) -> str:
+def _genero(texto: str, tipo: MentionType) -> str:
     primeira = texto.split(maxsplit=1)[0].casefold()
-    if primeira in {"a", "uma", "nenhuma", "aquela", "daquela", "ela", "dela", "sua", "minha"}:
+    if tipo == "nome_proprio" and primeira in NOMES_FEMININOS:
         return "feminino"
-    if primeira in {"o", "um", "nenhum", "aquele", "daquele", "ele", "dele", "seu", "meu"}:
+    if tipo == "nome_proprio" and primeira in NOMES_MASCULINOS:
+        return "masculino"
+    if primeira in {"seu", "sua", "seus", "suas", "meu", "minha", "meus", "minhas"}:
+        return "indeterminado"
+    if primeira in {"a", "uma", "nenhuma", "aquela", "daquela", "ela", "dela"}:
+        return "feminino"
+    if primeira in {"o", "um", "nenhum", "aquele", "daquele", "ele", "dele"}:
         return "masculino"
     return "indeterminado"
 
 
-def _numero(texto: str) -> str:
+def _numero(texto: str, tipo: MentionType) -> str:
     primeira = texto.split(maxsplit=1)[0].casefold()
+    if primeira in {"seu", "sua", "seus", "suas", "meu", "minha", "meus", "minhas"}:
+        return "indeterminado"
     if primeira in {"os", "as", "uns", "umas", "aqueles", "aquelas", "eles", "elas", "deles", "delas", "seus", "suas", "meus", "minhas"}:
         return "plural"
     if primeira in DETERMINANTES | PRONOMES_PESSOAIS | PRONOMES_POSSESSIVOS:
         return "singular"
+    if tipo == "descricao_nominal" and texto.casefold().split()[-1].endswith("s"):
+        return "plural"
     return "indeterminado"
 
 
@@ -110,7 +129,7 @@ def _detectar_nomes(texto: str, origem: MentionOrigin, candidatos: dict[tuple[in
         if (
             token.texto[:1].isupper()
             and token.texto not in INICIOS_DE_PERIODO
-            and token.normalizado not in PRONOMES_PESSOAIS | PRONOMES_POSSESSIVOS
+            and token.normalizado not in PRONOMES_PESSOAIS | PRONOMES_POSSESSIVOS | DETERMINANTES | TERMOS_PESSOA
         ):
             _adicionar(candidatos, Candidate(token.texto, token.inicio, token.fim, "nome_proprio", origem, 0.93))
 
@@ -129,7 +148,7 @@ def _detectar_descricoes(texto: str, origem: MentionOrigin, candidatos: dict[tup
             separador = texto[anterior.fim:proximo.inicio]
             if re.search(r"[,.!?;:\"“”]", separador):
                 break
-            if proximo.normalizado in LIMITES:
+            if _eh_limite_nominal(proximo):
                 break
             if proximo.normalizado in PREPOSICOES_INTERNAS or proximo.normalizado in PRONOMES_POSSESSIVOS:
                 fim_indice = atual
@@ -156,15 +175,24 @@ def _detectar_descricoes_complexas(texto: str, origem: MentionOrigin, candidatos
 
 
 def _detectar_papeis_humanos(texto: str, origem: MentionOrigin, candidatos: dict[tuple[int, int, str], Candidate]) -> None:
-    for token in _tokens(texto):
+    tokens = _tokens(texto)
+    for indice, token in enumerate(tokens):
         if token.normalizado not in TERMOS_PESSOA:
             continue
-        if any(
+        contido = any(
             candidato.inicio <= token.inicio and candidato.fim >= token.fim
             for candidato in candidatos.values()
-        ):
+        )
+        if contido and token.normalizado != "alguém":
             continue
-        _adicionar(candidatos, Candidate(token.texto, token.inicio, token.fim, "descricao_nominal", origem, 0.74))
+        fim = token.fim
+        for proximo in tokens[indice + 1:indice + 3]:
+            separador = texto[fim:proximo.inicio]
+            if re.search(r"[,.!?;:\"“”]", separador) or _eh_limite_nominal(proximo) or proximo.normalizado in PREPOSICOES_INTERNAS:
+                break
+            fim = proximo.fim
+        trecho = texto[token.inicio:fim]
+        _adicionar(candidatos, Candidate(trecho, token.inicio, fim, "descricao_nominal", origem, 0.78))
 
 
 def detectar_mencoes(texto: str, origem: MentionOrigin = "paragrafo", inicio_id: int = 1) -> list[Mention]:
@@ -186,8 +214,8 @@ def detectar_mencoes(texto: str, origem: MentionOrigin = "paragrafo", inicio_id:
             intervalo=Span(inicio=candidato.inicio, fim=candidato.fim),
             caracteristicas=MentionFeatures(
                 classe_semantica=_classe_semantica(candidato.texto, candidato.tipo),
-                genero=_genero(candidato.texto),
-                numero=_numero(candidato.texto),
+                genero=_genero(candidato.texto, candidato.tipo),
+                numero=_numero(candidato.texto, candidato.tipo),
             ),
             confianca_deteccao=candidato.confianca,
         ))

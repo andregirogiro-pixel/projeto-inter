@@ -48,6 +48,21 @@ class ExtractorTests(unittest.TestCase):
         self.assertTrue(any(m.origem == "contexto_anterior" for m in resultado.mencoes))
         self.assertTrue(all(p.evidencia.texto in resultado.paragrafo for p in resultado.proposicoes))
 
+    def test_adjetivo_nao_vira_predicado_e_sujeito_complexo_e_preservado(self) -> None:
+        texto = (
+            "O documento atualizado foi enviado, pois o tempo já estava se esgotando. "
+            "Alguém que construiu a carreira transformando crises reagiu."
+        )
+        resultado = analisar_paragrafo(texto)
+        formas = {item.forma_textual.casefold() for item in resultado.proposicoes}
+        self.assertNotIn("atualizado", formas)
+        esgotar = next(item for item in resultado.proposicoes if item.predicado == "esgotar")
+        self.assertEqual(esgotar.participantes[0].mencao, "o tempo")
+        construir = next(item for item in resultado.proposicoes if item.predicado == "construir")
+        transformar = next(item for item in resultado.proposicoes if item.predicado == "transformar")
+        self.assertEqual(construir.participantes[0].mencao.casefold(), "alguém")
+        self.assertEqual(transformar.participantes[0].mencao.casefold(), "alguém")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -35,6 +35,16 @@ class MentionDetectorTests(unittest.TestCase):
         self.assertEqual(elas[0].tipo, "pronome_pessoal")
         self.assertTrue(any(m.texto.casefold() == "gerente" for m in mencoes))
 
+    def test_estabiliza_limites_e_detecta_segunda_pessoa(self) -> None:
+        texto = "O documento foi enviado ao diretor financeiro, pois o tempo já acabava. Você viu."
+        mencoes = detectar_mencoes(texto)
+        textos = {m.texto for m in mencoes}
+        self.assertIn("diretor financeiro", textos)
+        self.assertIn("o tempo", textos)
+        self.assertNotIn("o tempo já", textos)
+        voce = next(m for m in mencoes if m.texto == "Você")
+        self.assertEqual(voce.tipo, "pronome_pessoal")
+
 
 if __name__ == "__main__":
     unittest.main()

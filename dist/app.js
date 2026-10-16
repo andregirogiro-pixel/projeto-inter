@@ -11,6 +11,7 @@ const clearButton = document.querySelector("#clear");
 const emptyState = document.querySelector("#empty-state");
 const analysisOutput = document.querySelector("#analysis-output");
 const propositionList = document.querySelector("#proposition-list");
+const referenceMap = document.querySelector("#reference-map");
 const mentionMap = document.querySelector("#mention-map");
 const resultStats = document.querySelector("#result-stats");
 
@@ -38,16 +39,110 @@ function typeLabel(type) {
   })[type] || type;
 }
 
-function renderMentionGroup(title, mentions, sourceLabel) {
+function stateLabel(state) {
+  return ({
+    resolvida: "resolvida",
+    ambigua: "ambígua",
+    nao_resolvida: "não resolvida",
+    novo_referente: "novo referente"
+  })[state] || state;
+}
+
+function renderReferenceCard(referent, mentionById, resolutionByMention) {
+  const mentionChips = referent.mencoes.map(id => {
+    const mention = mentionById.get(id);
+    const resolution = resolutionByMention.get(id);
+    if (!mention) return "";
+    const relation = resolution?.tipo_relacao === "possuidor" ? `<small>possuidor</small>` : "";
+    return `<li><span>${escapeHtml(id)}</span> “${escapeHtml(mention.texto)}” ${relation}</li>`;
+  }).join("");
+  return `
+    <article class="referent-card ${referent.mencoes.length > 1 ? "linked" : "singleton"}">
+      <div class="referent-heading">
+        <span class="referent-id">${escapeHtml(referent.id)}</span>
+        <span class="referent-confidence">${Math.round(referent.confianca * 100)}%</span>
+      </div>
+      <h4>${escapeHtml(referent.rotulo)}</h4>
+      <p>${escapeHtml(referent.classe_semantica)} · ${referent.mencoes.length} ${referent.mencoes.length === 1 ? "menção" : "menções"}</p>
+      <ul>${mentionChips}</ul>
+    </article>
+  `;
+}
+
+function renderDecision(resolution, mentionById, referentById) {
+  const mention = mentionById.get(resolution.mencao_id);
+  if (!mention) return "";
+  const target = resolution.referente_id ? referentById.get(resolution.referente_id) : null;
+  const alternatives = resolution.alternativas.map(item => {
+    const referent = referentById.get(item.referente_id);
+    return `<li><strong>${escapeHtml(item.referente_id)}</strong> — ${escapeHtml(referent?.rotulo || "candidato")} · ${Math.round(item.pontuacao * 100)}%</li>`;
+  }).join("");
+  return `
+    <details class="reference-decision ${escapeHtml(resolution.estado)}">
+      <summary>
+        <span><strong>${escapeHtml(resolution.mencao_id)}</strong> “${escapeHtml(mention.texto)}”</span>
+        <span class="decision-state">${escapeHtml(stateLabel(resolution.estado))}${target ? ` → ${escapeHtml(target.id)}` : ""}</span>
+      </summary>
+      <div class="decision-body">
+        <p><strong>Relação:</strong> ${escapeHtml(resolution.tipo_relacao)} · ${Math.round(resolution.confianca * 100)}% de confiança</p>
+        <ul class="reason-list">${resolution.razoes.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+        ${alternatives ? `<div class="alternatives"><strong>Alternativas consideradas</strong><ul>${alternatives}</ul></div>` : ""}
+      </div>
+    </details>
+  `;
+}
+
+function renderReferences(referents, resolutions, mentions) {
+  const mentionById = new Map(mentions.map(item => [item.id, item]));
+  const resolutionByMention = new Map(resolutions.map(item => [item.mencao_id, item]));
+  const referentById = new Map(referents.map(item => [item.id, item]));
+  const linked = referents.filter(item => item.mencoes.length > 1);
+  const singletons = referents.filter(item => item.mencoes.length === 1);
+  const decisions = resolutions.filter(item => item.estado !== "novo_referente");
+  const pending = decisions.filter(item => item.estado === "ambigua" || item.estado === "nao_resolvida");
+
+  referenceMap.innerHTML = `
+    <header>
+      <div>
+        <h3 id="reference-title">Referentes formados</h3>
+        <p>Menções agrupadas por identidade; possessivos indicam o possuidor.</p>
+      </div>
+      <span>${referents.length} ${referents.length === 1 ? "referente" : "referentes"}</span>
+    </header>
+    <div class="referent-grid">
+      ${linked.map(item => renderReferenceCard(item, mentionById, resolutionByMention)).join("") || `<p class="quiet-message">Nenhuma cadeia referencial foi formada.</p>`}
+    </div>
+    ${singletons.length ? `
+      <details class="singleton-section">
+        <summary>Ver ${singletons.length} ${singletons.length === 1 ? "referente individual" : "referentes individuais"}</summary>
+        <div class="referent-grid singleton-grid">${singletons.map(item => renderReferenceCard(item, mentionById, resolutionByMention)).join("")}</div>
+      </details>
+    ` : ""}
+    ${pending.length ? `<div class="pending-note"><strong>${pending.length} ${pending.length === 1 ? "decisão pendente" : "decisões pendentes"}</strong> permanecem visíveis para revisão.</div>` : ""}
+    ${decisions.length ? `
+      <details class="decision-section">
+        <summary>Examinar justificativas e alternativas</summary>
+        <div class="decision-list">${decisions.map(item => renderDecision(item, mentionById, referentById)).join("")}</div>
+      </details>
+    ` : ""}
+  `;
+}
+
+function renderMentionGroup(title, mentions, sourceLabel, resolutionByMention) {
   if (!mentions.length) return "";
-  const items = mentions.map(mention => `
+  const items = mentions.map(mention => {
+    const resolution = resolutionByMention.get(mention.id);
+    const referent = resolution?.referente_id
+      ? `<span class="mention-reference">${escapeHtml(resolution.referente_id)}</span>`
+      : `<span class="mention-reference pending">${escapeHtml(stateLabel(resolution?.estado || "nao_resolvida"))}</span>`;
+    return `
     <li class="mention-item ${mention.mencao_pai_id ? "nested" : ""}">
       <span class="mention-id">${escapeHtml(mention.id)}</span>
-      <span class="mention-text">“${escapeHtml(mention.texto)}”</span>
+      <span class="mention-text">“${escapeHtml(mention.texto)}” ${referent}</span>
       <span class="mention-type">${escapeHtml(typeLabel(mention.tipo))}</span>
       <span class="mention-meta">${escapeHtml(mention.caracteristicas.classe_semantica)} · [${mention.intervalo.inicio}, ${mention.intervalo.fim})${mention.mencao_pai_id ? ` · dentro de ${escapeHtml(mention.mencao_pai_id)}` : ""}</span>
     </li>
-  `).join("");
+  `}).join("");
   return `
     <section class="mention-source">
       <h4>${escapeHtml(title)} <small>${escapeHtml(sourceLabel)}</small></h4>
@@ -56,19 +151,20 @@ function renderMentionGroup(title, mentions, sourceLabel) {
   `;
 }
 
-function renderMentions(mentions) {
+function renderMentions(mentions, resolutions) {
   const fromContext = mentions.filter(item => item.origem === "contexto_anterior");
   const fromParagraph = mentions.filter(item => item.origem === "paragrafo");
+  const resolutionByMention = new Map(resolutions.map(item => [item.mencao_id, item]));
   mentionMap.innerHTML = `
     <header>
       <div>
         <h3 id="mention-title">Menções detectadas</h3>
-        <p>Os referentes R1/R2 serão formados no próximo incremento.</p>
+        <p>Cada menção mostra o referente atribuído ou o estado pendente.</p>
       </div>
       <span>${mentions.length} ${mentions.length === 1 ? "menção" : "menções"}</span>
     </header>
-    ${renderMentionGroup("Contexto anterior", fromContext, "apoio referencial")}
-    ${renderMentionGroup("Parágrafo principal", fromParagraph, "origem das proposições")}
+    ${renderMentionGroup("Contexto anterior", fromContext, "apoio referencial", resolutionByMention)}
+    ${renderMentionGroup("Parágrafo principal", fromParagraph, "origem das proposições", resolutionByMention)}
   `;
 }
 
@@ -110,7 +206,7 @@ function renderPropositions(propositions) {
           </div>
           <div class="field">
             <dt>Referente</dt>
-            <dd class="operator-none">aguardando resolução</dd>
+            <dd class="${participant?.referente_id ? "reference-value" : "operator-none"}">${participant?.referente_id ? escapeHtml(participant.referente_id) : "não resolvido"}</dd>
           </div>
           <div class="field">
             <dt>Atribuição</dt>
@@ -134,6 +230,7 @@ function renderPropositions(propositions) {
 function renderError(message) {
   emptyState.hidden = true;
   analysisOutput.hidden = false;
+  referenceMap.innerHTML = "";
   mentionMap.innerHTML = "";
   propositionList.innerHTML = `<li class="error-state">${escapeHtml(message)}</li>`;
   resultStats.hidden = true;
@@ -164,7 +261,8 @@ async function renderAnalysis() {
 
     emptyState.hidden = true;
     analysisOutput.hidden = false;
-    renderMentions(data.mencoes);
+    renderReferences(data.referentes, data.resolucoes, data.mencoes);
+    renderMentions(data.mencoes, data.resolucoes);
     if (data.proposicoes.length) renderPropositions(data.proposicoes);
     else propositionList.innerHTML = `<li class="error-state">${escapeHtml(data.alertas[0] || "Nenhuma proposição identificada.")}</li>`;
 
@@ -172,6 +270,9 @@ async function renderAnalysis() {
     resultStats.innerHTML = `
       <span class="mini-chip">${summary.proposicoes} proposições</span>
       <span class="mini-chip">${summary.mencoes} menções</span>
+      <span class="mini-chip">${summary.referentes} referentes</span>
+      <span class="mini-chip">${summary.resolucoes_resolvidas} resolvidas</span>
+      ${summary.resolucoes_ambiguas ? `<span class="mini-chip warning">${summary.resolucoes_ambiguas} ambíguas</span>` : ""}
       <span class="mini-chip">${summary.negacoes} negações</span>
       <span class="mini-chip">${summary.atribuicoes_marcadas} atribuídas</span>
     `;

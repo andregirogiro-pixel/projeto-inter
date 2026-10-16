@@ -69,21 +69,26 @@ class Proposition(BaseModel):
 class AnalysisSummary(BaseModel):
     proposicoes: int
     mencoes: int
+    referentes: int
+    resolucoes_resolvidas: int
+    resolucoes_ambiguas: int
     negacoes: int
     atribuicoes_marcadas: int
 
 
 class AnalysisResponse(BaseModel):
-    schema_version: Literal["0.2.0"] = "0.2.0"
+    schema_version: Literal["0.3.0"] = "0.3.0"
     paragrafo: str
     contexto_anterior: str | None = None
     proposicoes: list[Proposition]
     mencoes: list["Mention"]
+    referentes: list["Referent"]
+    resolucoes: list["ReferenceResolution"]
     resumo: AnalysisSummary
     alertas: list[str]
 
 
-from .referencias.models import Mention  # noqa: E402
+from .referencias.models import Mention, Referent, ReferenceResolution  # noqa: E402
 
 AnalysisResponse.model_rebuild()
 

@@ -6,7 +6,7 @@ O primeiro recorte do produto é deliberadamente pequeno: interpretar **um pará
 
 ## Estado atual
 
-O projeto está na **Etapa 1 — estrutura básica**. O motor e a API são escritos em Python; a primeira interface funcional está em `dist/`. Os anexos originais foram preservados em:
+O projeto está na **Etapa 2 — resolução de referências**. O motor e a API são escritos em Python; a interface funcional está em `dist/`. Os anexos originais foram preservados em:
 
 - `fixtures/vetorizacao-28.json`: exemplo real de entrada;
 - `docs/referencias/arquitetura_interpretacao_fundamentada_v1.pdf`: referência conceitual.
@@ -15,9 +15,18 @@ O plano e os critérios de aceite estão em [`docs/01-escopo-e-etapas.md`](docs/
 
 ## Interface atual
 
-A página recebe um parágrafo principal, um contexto anterior opcional e chama a API Python local. Ela produz proposições e uma lista de menções com tipo, origem, características e intervalos exatos no texto. Os participantes das proposições já apontam para IDs de menção; a formação dos referentes `R1/R2` será o próximo incremento.
+A página recebe um parágrafo principal, um contexto anterior opcional e chama a API Python local. Ela produz proposições, menções e grupos de referentes `R1/R2`. Cada decisão mostra confiança, razões, alternativas e evidências. Possessivos registram uma relação de possuidor, sem confundir o possuidor com o objeto possuído. Os participantes das proposições apontam para um referente somente quando existe uma decisão segura.
 
-Esta versão é um extrator heurístico demonstrativo. Confiança e pendências são exibidas de forma explícita; a validação linguística e o motor semântico serão desenvolvidos nas próximas etapas.
+Esta versão continua sendo um extrator heurístico demonstrativo. Resoluções ambíguas ou sem antecedente permanecem explícitas; confiança não representa uma probabilidade calibrada.
+
+### Contrato `0.3.0`
+
+A resposta de `POST /api/analisar` inclui:
+
+- `mencoes`: ocorrências com intervalos exatos;
+- `referentes`: agrupamentos de menções;
+- `resolucoes`: decisão, tipo de relação, razões, alternativas e evidências;
+- `proposicoes[].participantes[].referente_id`: vínculo seguro com o grupo referencial.
 
 ## Baixar e executar
 

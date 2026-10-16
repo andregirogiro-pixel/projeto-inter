@@ -15,6 +15,7 @@ from .models import (
 )
 from .referencias.detector import detectar_mencoes
 from .referencias.models import Mention
+from .referencias.resolvedor import resolver_referencias
 
 
 @dataclass(frozen=True)
@@ -67,9 +68,9 @@ MODAIS = {
     "talvez": "possível", "possivelmente": "possível", "deve": "provável/necessária",
     "deveria": "esperada", "capaz": "capacidade",
 }
-PRONOMES_SUJEITO = {"ele", "ela", "eles", "elas"}
+PRONOMES_SUJEITO = {"eu", "tu", "você", "nós", "vocês", "ele", "ela", "eles", "elas"}
 INICIOS_NAO_NOMINAIS = {"Quando", "Durante", "Apesar", "No", "Na", "Você", "Claro", "Enquanto", "Embora", "Porque", "Pois"}
-NOMES_DE_PAPEL = {"gerente", "engenheira", "profissional", "diretor", "auditores", "bateria", "documento", "burocracia"}
+NOMES_DE_PAPEL = {"gerente", "engenheira", "profissional", "diretor", "auditores", "bateria", "documento", "burocracia", "alguém"}
 NAO_VERBOS = {
     "quando", "enquanto", "segundo", "comando", "demanda", "anda", "ainda",
     "conteúdo", "sentido", "partido", "estado", "resultado", "cuidado",
@@ -112,8 +113,6 @@ def lematizar(token: Token) -> str | None:
         return palavra[:-4] + "r"
     if re.search(r"(?:asse|esse|isse)$", palavra) and len(palavra) > 6:
         return palavra[:-4] + "r"
-    if re.search(r"(?:ado|ido)$", palavra) and len(palavra) > 5:
-        return palavra[:-3] + "r"
     if palavra.endswith("ou") and len(palavra) > 4:
         return palavra[:-2] + "ar"
     return None
@@ -164,8 +163,8 @@ def participante_anteposto(
     trecho = texto[base:inicio_verbo]
     match = re.search(
         r"\b((?:nenhum|nenhuma|o|a|os|as|um|uma)\s+[^\s,.;]+"
-        r"(?:\s+(?!(?:havia|tivesse|tenha|foi|era|sido|estava)\b)[^\s,.;]+)?)"
-        r"\s+(?:(?:não\s+)?(?:havia|tivesse|tenha|foi|era|sido|estava)\s+)*$",
+        r"(?:\s+(?!(?:não|nem|já|havia|tivesse|tenha|foi|era|sido|estava)\b)[^\s,.;]+)?)"
+        r"(?:\s+já)?\s+(?:(?:não\s+)?(?:havia|tivesse|tenha|foi|era|sido|estava)\s+)*(?:se\s+)?$",
         trecho,
         re.IGNORECASE,
     )
@@ -176,9 +175,37 @@ def participante_anteposto(
     return DetectedParticipant(texto[inicio:fim], inicio, fim)
 
 
+def participante_de_descricao_complexa(
+    mencoes: list[Mention], token: Token
+) -> DetectedParticipant | None:
+    complexas = [
+        mencao for mencao in mencoes
+        if mencao.tipo == "descricao_complexa"
+        and mencao.intervalo.inicio < token.inicio < mencao.intervalo.fim
+    ]
+    if not complexas:
+        return None
+    complexa = min(complexas, key=lambda item: item.intervalo.fim - item.intervalo.inicio)
+    nucleos = [
+        mencao for mencao in mencoes
+        if mencao.mencao_pai_id == complexa.id and mencao.texto.casefold() == "alguém"
+    ]
+    if not nucleos:
+        return None
+    nucleo = nucleos[0]
+    return DetectedParticipant(nucleo.texto, nucleo.intervalo.inicio, nucleo.intervalo.fim)
+
+
 def complemento(texto: str, token: Token, fim_evidencia: int) -> str | None:
     cauda = texto[token.fim:fim_evidencia]
     cauda = re.sub(r"^\s+(?:a|o|ao|à|os|as|um|uma|de|do|da)\s+", "", cauda, flags=re.IGNORECASE)
+    formas_verbais = "|".join(sorted((re.escape(item) for item in VERBOS), key=len, reverse=True))
+    cauda = re.split(
+        rf"\s+(?:e|nem|mas)\s+(?=(?:{formas_verbais})\b)",
+        cauda,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
     cauda = re.sub(r"[.,;!?\"”]+$", "", cauda).strip()
     if len(cauda) < 3:
         return None
@@ -224,7 +251,7 @@ def extrair_atribuicao(texto: str, token: Token, lema: str, periodo: Sentence, p
         return Attribution(fonte=participante, modo=modo, estado="afirmada")
     prefixo = periodo.texto[:token.inicio - periodo.inicio]
     if re.search(r"percebeu\s+que", prefixo, re.IGNORECASE):
-        return Attribution(fonte="Helena (hipótese)", modo="conteúdo percebido", estado="percebida")
+        return Attribution(fonte="experienciador não resolvido", modo="conteúdo percebido", estado="percebida")
     return Attribution(fonte="narrador", modo="asserção narrativa", estado="afirmada")
 
 
@@ -279,6 +306,7 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
         len(mencoes_contexto) + 1,
     )
     mencoes = [*mencoes_contexto, *mencoes_paragrafo]
+    resultado_referencias = resolver_referencias(mencoes)
 
     tokens = tokenizar(texto)
     periodos = segmentar_periodos(texto)
@@ -289,13 +317,16 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
         if not lema:
             continue
         proximo = tokens[indice + 1] if indice + 1 < len(tokens) else None
+        if proximo and proximo.normalizado == "se" and indice + 2 < len(tokens):
+            proximo = tokens[indice + 2]
         if token.normalizado in AUXILIARES and proximo and lematizar(proximo) and proximo.inicio - token.fim < 18:
             continue
 
         periodo = next((item for item in periodos if item.inicio <= token.inicio < item.fim), periodos[0])
         inicio, fim = intervalo_evidencia(texto, periodo, token)
         participante_detectado = (
-            participante_anteposto(texto, periodo.inicio, token.inicio)
+            participante_de_descricao_complexa(mencoes_paragrafo, token)
+            or participante_anteposto(texto, periodo.inicio, token.inicio)
             or participante_mais_proximo(texto, tokens, indice, periodo.inicio)
         )
         if participante_detectado is None and lema in VERBOS_FALA:
@@ -313,6 +344,7 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
                 mencao=participante_detectado.texto,
                 mencao_id=mencao.id,
                 intervalo=Span(inicio=participante_detectado.inicio, fim=participante_detectado.fim),
+                referente_id=resultado_referencias.referente_por_mencao.get(mencao.id),
             ))
         proposicoes.append(Proposition(
             id=f"P{len(proposicoes) + 1}",
@@ -331,15 +363,28 @@ def analisar_paragrafo(texto: str, contexto_anterior: str | None = None) -> Anal
         alertas.append("Nenhum predicado foi identificado com segurança; revisão manual necessária.")
     if any(not prop.participantes for prop in proposicoes):
         alertas.append("Há proposições cujo participante principal ainda não foi localizado como menção.")
+    ambiguas = [item for item in resultado_referencias.resolucoes if item.estado == "ambigua"]
+    nao_resolvidas = [item for item in resultado_referencias.resolucoes if item.estado == "nao_resolvida"]
+    if ambiguas:
+        alertas.append(f"{len(ambiguas)} resolução referencial permaneceu ambígua.")
+    if nao_resolvidas:
+        alertas.append(f"{len(nao_resolvidas)} menção pronominal permaneceu sem referente textual seguro.")
 
     return AnalysisResponse(
         paragrafo=texto,
         contexto_anterior=contexto_anterior,
         proposicoes=proposicoes,
         mencoes=mencoes,
+        referentes=resultado_referencias.referentes,
+        resolucoes=resultado_referencias.resolucoes,
         resumo=AnalysisSummary(
             proposicoes=len(proposicoes),
             mencoes=len(mencoes),
+            referentes=len(resultado_referencias.referentes),
+            resolucoes_resolvidas=sum(
+                item.estado == "resolvida" for item in resultado_referencias.resolucoes
+            ),
+            resolucoes_ambiguas=len(ambiguas),
             negacoes=sum(prop.operadores.negacao is not None for prop in proposicoes),
             atribuicoes_marcadas=sum(prop.atribuicao.modo != "asserção narrativa" for prop in proposicoes),
         ),

@@ -74,6 +74,8 @@ button { cursor: pointer; }
   white-space: nowrap;
 }
 
+.mini-chip.warning { color: #7c4a18; background: var(--amber-soft); }
+
 .version-pill {
   padding: 7px 11px;
   border: 1px solid var(--line);
@@ -389,8 +391,135 @@ textarea.context-textarea:focus {
 .reference-map h3 { margin: 0; font-size: 13px; }
 .reference-map header span { color: var(--muted); font-size: 10px; }
 
-.mention-map header { align-items: flex-start; }
-.mention-map header p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+.reference-map header { align-items: flex-start; }
+.reference-map header p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+
+.referent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.referent-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #d9e3dc;
+  border-radius: 11px;
+  background: #f6faf7;
+}
+
+.referent-card.linked { border-left: 3px solid var(--green-2); }
+.referent-card.singleton { background: #fbfaf6; border-color: var(--line); }
+
+.referent-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.referent-id {
+  color: var(--amber);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.referent-confidence { color: var(--muted); font-size: 8px; font-weight: 750; }
+
+.referent-card h4 {
+  margin: 5px 0 2px;
+  overflow: hidden;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referent-card > p { margin: 0 0 8px; color: var(--muted); font-size: 8px; }
+
+.referent-card ul {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+}
+
+.referent-card li {
+  padding: 4px 6px;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--green);
+  background: var(--mint);
+  border-radius: 6px;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referent-card li span { color: var(--amber); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; }
+.referent-card li small { margin-left: 3px; color: #7c4a18; font-size: 7px; font-weight: 800; text-transform: uppercase; }
+
+.singleton-section,
+.decision-section {
+  margin-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.singleton-section > summary,
+.decision-section > summary {
+  padding: 11px 0 0;
+  color: var(--green-2);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.singleton-grid { margin-top: 10px; }
+
+.pending-note {
+  margin-top: 11px;
+  padding: 9px 10px;
+  color: #7c4a18;
+  background: var(--amber-soft);
+  border-radius: 8px;
+  font-size: 9px;
+}
+
+.decision-list { margin-top: 9px; display: grid; gap: 6px; }
+
+.reference-decision {
+  border: 1px solid #e3e0d8;
+  border-radius: 8px;
+  background: #fbfaf6;
+}
+
+.reference-decision.nao_resolvida,
+.reference-decision.ambigua { border-color: #e7cdb4; background: #fffaf4; }
+
+.reference-decision > summary {
+  padding: 8px 9px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 9px;
+}
+
+.decision-state { flex: 0 0 auto; color: var(--green-2); font-weight: 800; }
+.nao_resolvida .decision-state,
+.ambigua .decision-state { color: #8a4e16; }
+
+.decision-body { padding: 0 10px 10px 25px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.decision-body p { margin: 0 0 5px; }
+.reason-list { margin: 0; padding-left: 14px; }
+.alternatives { margin-top: 7px; }
+.alternatives ul { margin: 3px 0 0; padding-left: 14px; }
+.quiet-message { margin: 0; color: var(--muted); font-size: 10px; }
 
 .mention-source + .mention-source {
   margin-top: 16px;
@@ -447,6 +576,21 @@ textarea.context-textarea:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.mention-reference {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 4px;
+  color: white;
+  background: var(--green-2);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 7px;
+  font-weight: 800;
+  vertical-align: 1px;
+}
+
+.mention-reference.pending { color: #7c4a18; background: var(--amber-soft); font-family: inherit; }
 
 .mention-type {
   color: var(--green-2);
@@ -567,6 +711,7 @@ textarea.context-textarea:focus {
 
 .operator-none { color: #8b928e; }
 .operator-alert { color: #8a4e16; font-weight: 700; }
+.reference-value { color: var(--green-2); font-weight: 850; }
 
 .evidence {
   margin-top: 15px;
@@ -635,6 +780,7 @@ footer {
   .field-grid { grid-template-columns: 1fr; }
   .field.full { grid-column: auto; }
   .mention-list { grid-template-columns: 1fr; }
+  .referent-grid { grid-template-columns: 1fr; }
   .text-button.muted { margin-left: 0; }
   footer { flex-direction: column; }
 }
